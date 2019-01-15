@@ -1,6 +1,6 @@
 swagger: "2.0"
 info:
-  description: "This is a REACTOME analysis service. It provides gene set analysis methods whoes results can be visualized using the REACTOME pathway browser."
+  description: "This is a REACTOME analysis service. It provides gene set analysis methods whose results can be visualized using the REACTOME pathway browser."
   version: "0.1.0"
   title: "REACTOME Analysis Service"
   license:
