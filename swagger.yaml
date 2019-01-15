@@ -1,0 +1,268 @@
+swagger: "2.0"
+info:
+  description: "This is a REACTOME analysis service. It provides gene set analysis methods whoes results can be visualized using the REACTOME pathway browser."
+  version: "0.1.0"
+  title: "REACTOME Analysis Service"
+  license:
+    name: "Apache 2.0"
+    url: "http://www.apache.org/licenses/LICENSE-2.0.html"
+basePath: "/api"
+tags:
+  - name: "Analysis"
+    description: "Functions to initiate the analysis"
+  - name: "Result"
+    description: "Functions to check the status of running analyses and retrieve the result."
+schemes: 
+- "https"
+- "http"
+paths:
+  /methods:
+    get:
+      tags:
+      - "Analysis"
+      summary: "Lists the available analysis methods"
+      description: "Some analysis services may provide different methods to process the data. The available methods and their specification can be retrieved using this function. Most services will only support a single method though."
+      operationId: "listMethods"
+      parameters: []
+      produces: 
+      - "application/json"
+      responses:
+        "200":
+          description: "List of available methods"
+          schema:
+            type: "array"
+            items:
+              $ref: '#/definitions/Method'
+  /analysis:
+    post:
+      tags:
+      - "Analysis"
+      summary: "Performs the specified gene set analysis"
+      operationId: "startAnalysis"
+      consumes: 
+      - "application/json"
+      produces:
+      - "text/plain; charset=utf-8"
+      parameters: 
+      - in: "body"
+        name: "body"
+        description: "Specification of analysis to perform"
+        required: true
+        schema:
+          $ref: '#/definitions/AnalysisInput'
+      responses:
+        "200":
+          description: "Identifier of the running analysis."
+          schema:
+            type: "string"
+            example: "Analysis00371643"
+  /status/{analysisId}:
+    get:
+      tags:
+      - "Result"
+      summary: "Retrieves the status for the specified analysis."
+      operationId: "getStatus"
+      parameters:
+      - in: "path"
+        name: "analysisId"
+        required: true
+        type: "string"
+        description: "The analysis identifier returned by '/analysis'"
+      produces: 
+      - "application/json"
+      responses:
+        "200":
+          description: "Successfull operation returning the current status of the task."
+          schema:
+            type: "object"
+            required:
+            - "id"
+            - "status"
+            properties:
+              id:
+                type: "string"
+                description: "The identifier of the running task"
+                example: "Analysis00371643"
+              status:
+                type: "string"
+                enum: ["running", "complete", "failed"]
+                description: "Current status of the analysis"
+              description:
+                type: "string"
+                description: "Some methods may return a more verbose status of the process."
+                example: "Converting identifiers"
+              completed:
+                type: number
+                minimum: 0
+                maximum: 1
+                description: "Current progress of the task."
+        "404":
+          description: "Unknown identifier passed."
+  /result/{analysisId}:
+    get:
+      tags:
+      - "Result"
+      summary: "Retrieves the result for the completed analysis task"
+      operationId: "getResult"
+      parameters:
+      - in: "path"
+        name: "analysisId"
+        required: true
+        type: "string"
+        description: "The analysis identified returned by '/analysis'"
+      produces:
+      - "application/json"
+      responses:
+        "200":
+          description: "Sucessfull operation returning the analysis result."
+          schema:
+            $ref: '#/definitions/AnalysisResult'
+        "404":
+          description: "Unknown analysis identifier passed."
+        "406":
+          description: "Analysis is not 'complete'. The application should use '/status' to retrieve information about the current status."
+definitions:
+  Method:
+    type: "object"
+    required:
+    - "name"
+    properties:
+      name: 
+        type: "string"
+        example: "GSEA"
+      parameters:
+        type: "array"
+        items:
+          type: "object"
+          required:
+          - "name"
+          - "type"
+          properties:
+            name:
+              type: "string"
+              example: "permutations"
+            type:
+              type: "string"
+              enum: [int, string, float]
+              example: "int"
+            values:
+              description: "Limits the allowed values to the following list"
+              type: "array"
+              items:
+                type: "string"
+              example: ["10", "100", "1000"]
+            description:
+              type: "string"
+              example: "Number of permutations."
+  AnalysisInput:
+    type: "object"
+    required:
+    - "methodName"
+    - "datasets"
+    - "parameters"
+    properties:
+      methodName:
+        type: "string"
+        example: "GSEA"
+      datasets:
+        type: "array"
+        items:
+          $ref: '#/definitions/Dataset'
+      parametes:
+        type: "array"
+        items:
+          type: "object"
+          required:
+          - "name"
+          - "value"
+          properties:
+            name:
+              type: "string"
+              example: "permutations"
+            value:
+              type: "string"
+              example: "10"
+              description: "All parameter values must be converted to strings."
+  Dataset:
+    type: "object"
+    required:
+    - "name"
+    - "type"
+    - "data"
+    - "design"
+    properties:
+      name:
+        type: "string"
+        example: "First experiment"
+        description: "Every dataset must have a unique name."
+      type:
+        type: "string"
+        enum: [rnaseq, proteomics-int, proteomics-sc, microarray]
+        example: "rnaseq"
+        description: "Specifies the type of dataset. Currently supported types are RNA-seq (raw read counts), intensity-based proteomics quantification (proteomics-int), raw proteomics spectral counts (proteomics-sc), and microarray data."
+      data:
+        type: "string"
+        description: "Tab-delimited expression matrix with the first column containing gene / protein identifiers, the first row containing the sample labels and each subsequent row corresponding to the expression of one gene in all samples. The 'tab' character must be escaped using '\\t' and new-lines must be escaped using '\\n'. If multiple datasets are submitted, shared samples between the datasets must contain identical labels."
+        example: "\tSample 1\tSample2\nGene 1\t10\t20\n"
+      design:
+        $ref: "#/definitions/Design"
+  Design:
+    type: "object"
+    description: "Specifies the experimental design for a dataset."
+    required:
+    - "samples"
+    - "comparison"
+    - "analysisGroup"
+    properties:
+      samples:
+        type: "array"
+        items:
+          type: "string"
+        example: ["Sample 1", "Sample 2", "Sample 3"]
+        description: "List of all samples in the dataset."
+      comparison:
+        type: "object"
+        description: "Specifies the main comparison to perform in the analysis. 'group1' and 'group2' refer to the labels specified in the 'analysisGroup' array."
+        required:
+        - "group1"
+        - "group2"
+        properties:
+          group1:
+            type: "string"
+            example: "Control"
+          group2:
+            type: "string"
+            example: "Treatment"
+      analysisGroup:
+        type: "array"
+        items:
+          type: "string"
+        example: ["Treatment", "Control", "Treatment"]
+        description: "Names the group to use for the main analysis"
+    additionalProperties:
+      type: "array"
+      description: "Additional confounding factors can be specified as arrays following the format of 'analysisGroup'. Not all GSA methods will make use of these factors."
+      items:
+        type: "string"
+      example: ["Lab 1", "Lab 1", "Lab 2"]
+  AnalysisResult:
+    type: "array"
+    description: "Result of the performed GSA."
+    items:
+      type: "object"
+      required:
+      - "name"
+      - "pathwayMatrix"
+      properties:
+        name:
+          type: "string"
+          description: "Name of the dataset the result refers to. May also contain another identifier if a meta-analysis combining the data from various datasets is performed."
+          example: "Experiment 1"
+        pathwayMatrix:
+          type: "string"
+          description: "The pathway-centric result matrix as a tab-delimted matrix with the pathways as rows. Required columns are 'FDR' for the corrected p-values and 'Direction' indicating 'up' or 'down'. Tab is escaped using \\t and new-lines are escaped using \\n"
+          example: "\tDirection\tFDR\nPathway 1\tup\t0.001\n"
+        foldChangeMatrix:
+          type: "string"
+          description: "Some analysis may report gene / protein centric fold changes. These are reported as a tab-delimited matrix with the genes / proteins as rows."
+            
